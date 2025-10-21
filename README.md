@@ -55,7 +55,7 @@ Notes on Windows downloader
 
 Install aria2 on Windows (winget)
 
-If your friend has Windows 10/11 with the App Installer (winget), they can install aria2 with:
+If you have Windows 10/11 with the App Installer (winget), you can install aria2 with:
 
 ```powershell
 winget install --id aria2.aria2 -e
