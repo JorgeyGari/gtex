@@ -53,6 +53,25 @@ Notes on Windows downloader
 - `download_wsi.ps1` will use `aria2c` if present. Otherwise it uses `Start-BitsTransfer` in parallel background jobs.
 - If you want more advanced resumable segmented downloads on Windows, install `aria2` and the script will use it automatically.
 
+Install aria2 on Windows (winget)
+
+If your friend has Windows 10/11 with the App Installer (winget), they can install aria2 with:
+
+```powershell
+winget install --id aria2.aria2 -e
+```
+
+If `aria2.aria2` is not found on the winget feed, they can search for available packages first:
+
+```powershell
+winget search aria2
+```
+
+Alternative installers:
+- Chocolatey: `choco install aria2` (requires Chocolatey)
+- Scoop: `scoop install aria2` (requires Scoop)
+- Manual: download a Windows binary from the aria2 releases page on GitHub.
+
 Files of interest
 - `script.py` — filters `GTEx_Portal.csv` and writes `breast_wsi_urls.txt` and `breast_mammary_metadata.csv`.
 - `breast_wsi_urls.txt` — the URL list used by the downloader.
