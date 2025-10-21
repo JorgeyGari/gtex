@@ -63,3 +63,17 @@ Notes
 - The downloaded WSIs are stored in `breast_wsi_downloads/` (this directory is gitignored).
 - The script expects `GTEx_Portal.csv` to be present in the repository root. If you downloaded a fresh CSV with different column names, edit `script.py` to match the tissue and sample ID columns or open an issue.
 
+QuickStart one-liners
+
+Linux / macOS (single line; concurrency 4):
+
+```bash
+git clone <repo-url> && cd gtex && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && .venv/bin/python script.py && chmod +x download_wsi.sh && ./download_wsi.sh 4
+```
+
+Windows PowerShell (single line; concurrency 4):
+
+```powershell
+git clone <repo-url>; cd gtex; python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt; .venv\Scripts\python.exe script.py; .\download_wsi.ps1 -Concurrency 4
+```
+
