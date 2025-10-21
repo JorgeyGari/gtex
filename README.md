@@ -2,7 +2,7 @@
 
 This repo helps generate download URLs for GTEx breast/mammary whole-slide images (WSIs) and download them.
 
-Quick start (for your friend)
+Quick start
 
 1. Clone the repo
 
@@ -28,6 +28,30 @@ Quick start (for your friend)
 	./download_wsi.sh 4
 
 The downloader prefers `aria2c` (if installed) for faster segmented downloads. Otherwise it falls back to `xargs + wget`. There's also a simple Python fallback.
+
+Windows (PowerShell) instructions
+
+1. Open PowerShell and set execution policy for the session:
+
+	Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+2. Ensure Python is installed and create a venv (optional):
+
+	python -m venv .venv
+	.\.venv\Scripts\Activate.ps1
+	pip install -r requirements.txt
+
+3. Generate the URL list (same as above):
+
+	.venv\Scripts\python.exe script.py
+
+4. Download using PowerShell script (prefers aria2c if installed):
+
+	.\download_wsi.ps1 -Concurrency 4
+
+Notes on Windows downloader
+- `download_wsi.ps1` will use `aria2c` if present. Otherwise it uses `Start-BitsTransfer` in parallel background jobs.
+- If you want more advanced resumable segmented downloads on Windows, install `aria2` and the script will use it automatically.
 
 Files of interest
 - `script.py` — filters `GTEx_Portal.csv` and writes `breast_wsi_urls.txt` and `breast_mammary_metadata.csv`.
