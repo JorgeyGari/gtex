@@ -9,7 +9,8 @@ Prefers aria2c (if installed). Otherwise uses Start-BitsTransfer in parallel.
 #>
 param(
   [int]$Concurrency = 4,
-  [string]$OutDir = "breast_wsi_downloads"
+  [string]$OutDir = "breast_wsi_downloads",
+  [switch]$DryRun
 )
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -38,10 +39,15 @@ if (Get-Command aria2c -ErrorAction SilentlyContinue) {
         Write-Output "Skipping existing: $name"
       }
     }
-    if ((Get-Item $tmp).Length -gt 0) {
-      & aria2c.exe -i $tmp -d $outdir -x 4 -s 4 -j $Concurrency --auto-file-renaming=false --continue
+    if ($DryRun) {
+      Write-Output "-- Dry run: the following URLs would be passed to aria2c:"
+      if ((Get-Item $tmp).Length -gt 0) { Get-Content $tmp | ForEach-Object { Write-Output $_ } } else { Write-Output "(none)" }
     } else {
-      Write-Output "No new files to download."
+      if ((Get-Item $tmp).Length -gt 0) {
+        & aria2c.exe -i $tmp -d $outdir -x 4 -s 4 -j $Concurrency --auto-file-renaming=false --continue
+      } else {
+        Write-Output "No new files to download."
+      }
     }
   } finally {
     Remove-Item $tmp -ErrorAction SilentlyContinue
@@ -60,6 +66,10 @@ foreach ($url in $urls) {
     Write-Output "Skipping existing: $name"
     continue
   }
+  if ($DryRun) {
+    Write-Output "Would download: $name -> $url"
+    continue
+  }
   $jobs += Start-Job -ArgumentList $url, $dest -ScriptBlock {
     param($u, $d)
     try {
@@ -74,5 +84,5 @@ foreach ($url in $urls) {
   }
 }
 
-Write-Output "Started $($jobs.Count) background jobs. Use Get-Job and Receive-Job to inspect results."
+if (-not $DryRun) { Write-Output "Started $($jobs.Count) background jobs. Use Get-Job and Receive-Job to inspect results." }
 

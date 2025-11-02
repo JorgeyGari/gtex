@@ -29,6 +29,9 @@ Quick start
 	# Usage: ./download_wsi.sh [concurrency] [outdir]
 	./download_wsi.sh 4 ./breast_wsi_downloads
 
+	# Dry run (show what would be downloaded, don't actually fetch files)
+	./download_wsi.sh 4 ./breast_wsi_downloads --dry-run
+
 	# Example: specify a custom directory
 	./download_wsi.sh 8 /data/gtex_wsis
 
@@ -55,6 +58,9 @@ Windows (PowerShell) instructions
 
 	# Usage: .\download_wsi.ps1 -Concurrency <n> -OutDir <path>
 	.\download_wsi.ps1 -Concurrency 4 -OutDir .\breast_wsi_downloads
+
+	# Dry run (PowerShell)
+	.\download_wsi.ps1 -Concurrency 4 -OutDir .\breast_wsi_downloads -DryRun
 
 
 Notes on Windows downloader
