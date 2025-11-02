@@ -1,75 +1,126 @@
-(Project README)
+# GTEx / GDC slide downloader
 
-This repo helps generate download URLs for GTEx breast/mammary whole-slide images (WSIs) and download them.
+This repository contains small scripts to prepare and download whole-slide images (WSI) from GTEx and TCGA/GDC for research and analysis. Main entry points:
 
-Quick start
+- `main.py` — interactive orchestrator that runs URL preparation and the GTEx/GDC download steps.
+- `gtex.py` — GTEx downloader (consumes a URL list produced by `prepare_urls.py`).
+- `gdc.py` — TCGA (GDC) slides querier + downloader (uses `gdc-api-wrapper` for downloads).
+- `prepare_urls.py` — helper to generate GTEx URL lists and filtered metadata.
 
-1. Clone the repo
+## Quick summary
 
-	git clone <repo-url>
-	cd gtex
+Use `uv` (Astral UV) to create an isolated virtual environment, install the right Python version, and install dependencies from the lockfile. This keeps the workflow reproducible and simple for collaborators.
 
-2. Create a virtual environment and install Python deps
+## Setup (recommended with UV)
 
-	python3 -m venv .venv
-	source .venv/bin/activate
-	pip install -r requirements.txt
-
-3. Generate the URL list
-
-	# the repository includes `GTEx_Portal.csv` downloaded from GTEx histology page
-	# run the provided script to filter breast samples and create `breast_wsi_urls.txt`
-	.venv/bin/python script.py
-
-
-4. Download the WSIs
-
-	# default concurrency 4, default outdir ./breast_wsi_downloads
-	chmod +x download_wsi.py
-	
-	# Usage: ./download_wsi.py [--concurrency N] [--outdir DIR]
-	./download_wsi.py --concurrency 4 --outdir ./breast_wsi_downloads
-
-	# Dry run (show what would be downloaded, don't actually fetch files)
-	./download_wsi.py --dry-run
-
-	# Example: specify a custom directory
-	./download_wsi.py --concurrency 8 --outdir /data/gtex_wsis
-
-The downloader prefers `aria2c` (if installed) for faster segmented downloads. Otherwise it falls back to `xargs + wget`. There's also a simple Python fallback.
-
-Windows users
-
-This repository now focuses on POSIX-compatible shell usage via `download_wsi.sh` (Linux/macOS). If you're on Windows, run the shell script under WSL, Git Bash, or similar environments. The previous PowerShell downloader was removed to simplify maintenance.
-
-Files of interest
-- `script.py` — filters `GTEx_Portal.csv` and writes `breast_wsi_urls.txt` and `breast_mammary_metadata.csv`.
-- `breast_wsi_urls.txt` — the URL list used by the downloader.
-- `download_wsi.sh` — convenience downloader (aria2c preferred, fallback to xargs+wget or a Python downloader).
-- `requirements.txt` — Python runtime deps for the helper script.
-
-Notes
-- The downloaded WSIs are stored in `breast_wsi_downloads/` (this directory is gitignored).
-- **Downloaded files will have the `.svs` extension** (Aperio ScanScope Virtual Slide format, which is TIFF-based).
-- The download scripts now properly handle the `Content-Disposition` header from the server to preserve the correct filename.
-- The script expects `GTEx_Portal.csv` to be present in the repository root. If you downloaded a fresh CSV with different column names, edit `script.py` to match the tissue and sample ID columns or open an issue.
-
-## Recent Bug Fixes
-
-**File Extension Issue (Fixed Nov 2025):** 
-Previously downloaded files were missing the `.svs` extension. This has been fixed:
-- `download_wsi.sh` now uses `--content-disposition` (aria2/wget) to get filenames from the server
-- All active download methods now correctly save files with `.svs` extension
-- If you have old files without extensions, you can rename them: `mv GTEX-XXXXX-XXXX GTEX-XXXXX-XXXX.svs`
-
-See `BUGFIX_SUMMARY.md` for detailed information about the fix.
-
-QuickStart one-liners
-
-Linux / macOS (single line; concurrency 4):
+1. Clone the repository and enter it:
 
 ```bash
-git clone <repo-url> && cd gtex && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && .venv/bin/python script.py && chmod +x download_wsi.sh && ./download_wsi.sh 4
+git clone <your-repo-url>
+cd <your-repo-name>
 ```
 
+2. Install all dependencies and create the `.venv` automatically:
 
+```bash
+uv sync
+```
+
+`uv sync` will create the `.venv` directory, ensure the Python version from `.python-version` is present (or prompt to install it), and install the exact packages listed in `uv.lock`.
+
+3. Run scripts inside the managed environment with `uv run` — no need to activate the venv manually. Example:
+
+```bash
+uv run python main.py
+# or run an individual script
+uv run python gdc.py --dry-run --max 2
+```
+
+You can also run tests or other commands the same way:
+
+```bash
+uv run pytest
+```
+
+## Files to commit & ignore
+
+Commit these files (source of truth):
+
+- `pyproject.toml` — dependency and project metadata
+- `uv.lock` — locked, exact package versions for reproducibility
+- `.python-version` — Python version pin for UV
+- `.gitignore` — should include `.venv/`
+
+Do NOT commit:
+
+- `.venv/` — local virtual environment (generated by `uv sync`)
+- `__pycache__/` and other generated artifacts
+
+If you previously had a `requirements.txt` it is optional; prefer `pyproject.toml` + `uv.lock` with UV for reproducible installs.
+
+## CI / Reproducible installs
+
+For strict reproducibility (CI pipelines, production), install only from the lockfile:
+
+```bash
+uv sync --locked
+```
+
+This will error if `pyproject.toml` and the lockfile are out of sync — good for enforcing reproducible builds.
+
+## Running the downloader (tips)
+
+- `gdc.py --dry-run` queries GDC and prints counts/sizes without downloading. Use this to preview what will be downloaded.
+- `gdc.py -y --max N` runs non-interactively and limits to `N` files.
+- `main.py` is interactive by default; it can call `prepare_urls.py` (to build GTEx URL lists) and then call `gtex.py` and/or `gdc.py`.
+
+Be careful when running non-dry runs: the dataset sizes can be large. Make sure you have sufficient disk space and bandwidth.
+
+## Notes
+
+- This repo uses `gdc-api-wrapper` for downloads; the package is referenced in the lockfile / dependency configuration.
+- If you see import errors locally (for example `ModuleNotFoundError: No module named 'requests'`), ensure you ran `uv sync` and use `uv run` to execute scripts.
+
+## References
+
+UV documentation and discussion:
+
+- https://docs.astral.sh/uv/concepts/projects/sync/
+- https://docs.astral.sh/uv/reference/cli/
+- https://pydevtools.com/handbook/how-to/how-to-use-a-uv-lockfile-for-reproducible-python-environments/
+
+---
+ 
+## Helper scripts
+
+This repository includes small convenience wrappers in `scripts/` to make common workflows easier:
+
+- `scripts/run.sh` — a POSIX shell wrapper (Linux/macOS) for common `uv` commands (sync, run `main.py`, `gdc.py` dry-run, pytest, and a shell inside the uv-managed environment).
+- `scripts/run.ps1` — a PowerShell counterpart for Windows users providing the same set of commands.
+
+Examples (Linux/macOS):
+
+```bash
+./scripts/run.sh sync
+./scripts/run.sh main
+./scripts/run.sh gdc-dry 5
+./scripts/run.sh gdc 2
+```
+
+Examples (Windows PowerShell):
+
+```powershell
+./scripts/run.ps1 sync
+./scripts/run.ps1 main
+./scripts/run.ps1 gdc-dry 5
+./scripts/run.ps1 gdc 2
+```
+
+Both scripts simply call `uv`/`uv run ...` under the hood so they don't require activating the virtual environment manually.
+
+If you want, I can also:
+
+- Add a short `CONTRIBUTING.md` with development steps and a recommended `.gitignore`.
+- Make `scripts/run.sh` executable (chmod +x) and/or add a GitHub Action that demonstrates the `uv sync --locked` CI flow.
+
+Feel free to tell me which option you'd like next.
