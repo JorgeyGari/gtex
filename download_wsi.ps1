@@ -19,7 +19,13 @@ param(
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 $urlsFile = Join-Path $root 'breast_wsi_urls.txt'
-$outdir = Join-Path $root $OutDir
+
+# Allow absolute or relative OutDir. If user provided an absolute path, use it directly.
+if ([System.IO.Path]::IsPathRooted($OutDir)) {
+  $outdir = $OutDir
+} else {
+  $outdir = Join-Path $root $OutDir
+}
 
 if (-not (Test-Path $urlsFile)) {
   Write-Error "Missing $urlsFile. Run script.py to generate it."
