@@ -45,6 +45,36 @@ if breast_df.empty:
     )
     raise SystemExit(0)
 
+# -- Filter by sex (keep only female samples)
+sex_col_candidates = [
+    "Sex",
+    "Gender",
+]
+sex_col = next((c for c in sex_col_candidates if c in breast_df.columns), None)
+if sex_col is None:
+    sex_col = next(
+        (c for c in breast_df.columns if re.search(r"^sex$|^gender$", c, re.I)), None
+    )
+
+if sex_col is None:
+    raise KeyError(
+        "Could not find a sex column (expected one of: 'Sex', 'Gender'). Please check your CSV."
+    )
+
+# Accept common female encodings: 'F', 'Female', 'f', 'female', possibly with surrounding whitespace
+female_mask = (
+    breast_df[sex_col]
+    .astype(str)
+    .str.strip()
+    .str.match(r"(?i)^(f|female|fem)$", na=False)
+)
+breast_df = breast_df[female_mask].copy()
+print(f"After filtering by {sex_col}=Female: {len(breast_df)} samples")
+
+if breast_df.empty:
+    print("No female breast/mammary samples found. Exiting without writing files.")
+    raise SystemExit(0)
+
 # Detect an ID column that looks like a GTEx sample/specimen ID
 id_col_candidates = [
     "Specimen ID",
