@@ -10,7 +10,8 @@ Prefers aria2c (if installed). Otherwise uses Start-BitsTransfer in parallel.
 param(
   [int]$Concurrency = 4,
   [string]$OutDir = "breast_wsi_downloads",
-  [switch]$DryRun
+  [switch]$DryRun,
+  [switch]$ShowProgress
   ,
   [int]$MaxUrls = 0
 )
@@ -102,7 +103,9 @@ foreach ($url in $urls) {
   $jobs += Start-Job -ArgumentList $url, $dest -ScriptBlock {
     param($u, $d)
     try {
+      Write-Output "Starting download: $u -> $d"
       Start-BitsTransfer -Source $u -Destination $d -RetryInterval 10 -RetryTimeout 600 -DisplayName "download $([System.IO.Path]::GetFileName($u))"
+      Write-Output "Completed: $d"
     } catch {
       Write-Error "Failed $u: $_"
     }
@@ -114,5 +117,51 @@ foreach ($url in $urls) {
   }
 }
 
-if (-not $DryRun) { Write-Output "Started $($jobs.Count) background jobs. Use Get-Job and Receive-Job to inspect results." }
+if (-not $DryRun) {
+  if (-not $ShowProgress) {
+    Write-Output "Started $($jobs.Count) background jobs. Use Get-Job and Receive-Job to inspect results."
+  } else {
+    Write-Output "Started $($jobs.Count) background jobs. Showing progress (Ctrl+C to stop monitoring)"
+
+    # Polling loop: show job counts and BITS transfer progress until no running jobs remain
+    while ((Get-Job -State Running).Count -gt 0) {
+      $running = (Get-Job -State Running).Count
+      $completed = (Get-Job -State Completed).Count
+      $failed = (Get-Job -State Failed).Count
+      $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+      Write-Output "[$timestamp] Running: $running  Completed: $completed  Failed: $failed"
+
+      # Show BITS transfer summary (if any)
+      $transfers = Get-BitsTransfer -ErrorAction SilentlyContinue
+      if ($transfers) {
+        $transfers | ForEach-Object {
+          $pct = if ($_.BytesTotal -gt 0) { [math]::Round(($_.BytesTransferred / $_.BytesTotal) * 100, 1) } else { '(?)' }
+          $mbTransferred = [math]::Round($_.BytesTransferred / 1MB, 1)
+          $mbTotal = if ($_.BytesTotal -gt 0) { [math]::Round($_.BytesTotal / 1MB, 1) } else { '(?)' }
+          Write-Output "  BITS: $($_.DisplayName)  State=$($_.JobState)  $mbTransferred MB / $mbTotal MB  $pct%"
+        }
+      }
+
+      Start-Sleep -Seconds 2
+    }
+
+    # All jobs done; show final counts and collect outputs
+    $running = (Get-Job -State Running).Count
+    $completed = (Get-Job -State Completed).Count
+    $failed = (Get-Job -State Failed).Count
+    Write-Output "All jobs finished. Running: $running  Completed: $completed  Failed: $failed"
+
+    # Print job outputs and clean up job objects
+    $allJobs = Get-Job
+    foreach ($j in $allJobs) {
+      Write-Output "--- Job Id $($j.Id)  Name: $($j.Name)  State: $($j.State) ---"
+      try {
+        Receive-Job -Id $j.Id -ErrorAction SilentlyContinue
+      } catch {
+        # ignore
+      }
+      Remove-Job -Id $j.Id -ErrorAction SilentlyContinue
+    }
+  }
+}
 
