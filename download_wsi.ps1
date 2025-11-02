@@ -8,13 +8,14 @@ This script reads `breast_wsi_urls.txt` and downloads files into .\breast_wsi_do
 Prefers aria2c (if installed). Otherwise uses Start-BitsTransfer in parallel.
 #>
 param(
-  [int]$Concurrency = 4
+  [int]$Concurrency = 4,
+  [string]$OutDir = "breast_wsi_downloads"
 )
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 $urlsFile = Join-Path $root 'breast_wsi_urls.txt'
-$outdir = Join-Path $root 'breast_wsi_downloads'
+$outdir = Join-Path $root $OutDir
 
 if (-not (Test-Path $urlsFile)) {
   Write-Error "Missing $urlsFile. Run script.py to generate it."
@@ -23,41 +24,55 @@ if (-not (Test-Path $urlsFile)) {
 
 if (-not (Test-Path $outdir)) { New-Item -ItemType Directory -Path $outdir | Out-Null }
 
-# Prefer aria2c
+# Prefer aria2c. Filter out URLs whose basenames already exist in the outdir.
 if (Get-Command aria2c -ErrorAction SilentlyContinue) {
-  Write-Output "Using aria2c with concurrency=$Concurrency"
-  & aria2c.exe -i $urlsFile -d $outdir -x 4 -s 4 -j $Concurrency --auto-file-renaming=false --continue
+  Write-Output "Using aria2c with concurrency=$Concurrency, outdir=$outdir"
+  $tmp = [System.IO.Path]::GetTempFileName()
+  try {
+    Get-Content $urlsFile | ForEach-Object {
+      if ([string]::IsNullOrWhiteSpace($_)) { return }
+      $name = [System.IO.Path]::GetFileName($_.TrimEnd('/'))
+      if (-not (Test-Path (Join-Path $outdir $name))) {
+        $_ | Out-File -FilePath $tmp -Append -Encoding utf8
+      } else {
+        Write-Output "Skipping existing: $name"
+      }
+    }
+    if ((Get-Item $tmp).Length -gt 0) {
+      & aria2c.exe -i $tmp -d $outdir -x 4 -s 4 -j $Concurrency --auto-file-renaming=false --continue
+    } else {
+      Write-Output "No new files to download."
+    }
+  } finally {
+    Remove-Item $tmp -ErrorAction SilentlyContinue
+  }
   exit 0
 }
 
-# PowerShell parallel downloader using Start-BitsTransfer
+# PowerShell fallback: Start background jobs that use Start-BitsTransfer and skip existing files
 $urls = Get-Content $urlsFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
 $jobs = @()
-foreach ($chunk in $urls | ForEach-Object -Begin { $i=0 } -Process { if ($i -ge $Concurrency) { $i=0 }; ,@($_) } ) {
-  # fallback simple: start bits transfer for each URL (serialized); for large concurrency consider starting jobs
-}
-
-# Simpler approach: queue up background Jobs (limited by Concurrency)
-$semaphore = [System.Threading.SemaphoreSlim]::new($Concurrency, $Concurrency)
-$jobs = @()
 foreach ($url in $urls) {
-  $semaphore.Wait()
-  $jobs += Start-Job -ArgumentList $url, $outdir -ScriptBlock {
-    param($u, $od)
+  $name = [System.IO.Path]::GetFileName($url.TrimEnd('/'))
+  $dest = Join-Path $outdir $name
+  if (Test-Path $dest) {
+    Write-Output "Skipping existing: $name"
+    continue
+  }
+  $jobs += Start-Job -ArgumentList $url, $dest -ScriptBlock {
+    param($u, $d)
     try {
-      $name = [System.IO.Path]::GetFileName($u.TrimEnd('/'))
-      $dest = Join-Path $od $name
-      if (Test-Path $dest) { return }
-      # Use Invoke-WebRequest with resume support via Range not implemented here. We'll use Start-BitsTransfer which supports resuming.
-      Start-BitsTransfer -Source $u -Destination $dest -RetryInterval 10 -RetryTimeout 600 -DisplayName "download $name"
+      Start-BitsTransfer -Source $u -Destination $d -RetryInterval 10 -RetryTimeout 600 -DisplayName "download $([System.IO.Path]::GetFileName($u))"
     } catch {
       Write-Error "Failed $u: $_"
     }
-    finally { [void][System.Threading.SemaphoreSlim]::new(0) }
   }
-  # release is handled after job completion; simplistic but workable on most Windows machines
+  # throttle: if job count reaches concurrency, wait for any to complete
+  while (($jobs | Where-Object { $_.State -eq 'Running' }).Count -ge $Concurrency) {
+    Start-Sleep -Seconds 1
+  }
 }
 
-Write-Output "Started $($jobs.Count) background jobs. Use Get-Job | Receive-Job to check results."
+Write-Output "Started $($jobs.Count) background jobs. Use Get-Job and Receive-Job to inspect results."
 

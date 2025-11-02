@@ -21,11 +21,16 @@ Quick start
 	# run the provided script to filter breast samples and create `breast_wsi_urls.txt`
 	.venv/bin/python script.py
 
+
 4. Download the WSIs
 
-	# default concurrency 4
+	# default concurrency 4, default outdir ./breast_wsi_downloads
 	chmod +x download_wsi.sh
-	./download_wsi.sh 4
+	# Usage: ./download_wsi.sh [concurrency] [outdir]
+	./download_wsi.sh 4 ./breast_wsi_downloads
+
+	# Example: specify a custom directory
+	./download_wsi.sh 8 /data/gtex_wsis
 
 The downloader prefers `aria2c` (if installed) for faster segmented downloads. Otherwise it falls back to `xargs + wget`. There's also a simple Python fallback.
 
@@ -45,9 +50,12 @@ Windows (PowerShell) instructions
 
 	.venv\Scripts\python.exe script.py
 
+
 4. Download using PowerShell script (prefers aria2c if installed):
 
-	.\download_wsi.ps1 -Concurrency 4
+	# Usage: .\download_wsi.ps1 -Concurrency <n> -OutDir <path>
+	.\download_wsi.ps1 -Concurrency 4 -OutDir .\breast_wsi_downloads
+
 
 Notes on Windows downloader
 - `download_wsi.ps1` will use `aria2c` if present. Otherwise it uses `Start-BitsTransfer` in parallel background jobs.
