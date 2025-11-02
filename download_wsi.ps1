@@ -27,6 +27,9 @@ if ([System.IO.Path]::IsPathRooted($OutDir)) {
   $outdir = Join-Path $root $OutDir
 }
 
+# Read the URL list once and normalize
+$allUrls = Get-Content $urlsFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
 if (-not (Test-Path $urlsFile)) {
   Write-Error "Missing $urlsFile. Run script.py to generate it."
   exit 2
@@ -36,13 +39,19 @@ if (-not (Test-Path $outdir)) { New-Item -ItemType Directory -Path $outdir | Out
 
 # If MaxUrls provided (>0), calculate how many new downloads we should allow
 if ($MaxUrls -gt 0) {
-  $existingCount = (Get-ChildItem $outdir -File -ErrorAction SilentlyContinue | Measure-Object).Count
+  # Count only files that match basenames from the URL list so MaxUrls applies to the URL set
+  $urlNames = $allUrls | ForEach-Object { [System.IO.Path]::GetFileName($_.TrimEnd('/')) } | Select-Object -Unique
+  $matchedExisting = @()
+  foreach ($name in $urlNames) {
+    if (Test-Path (Join-Path $outdir $name)) { $matchedExisting += $name }
+  }
+  $existingCount = $matchedExisting.Count
   $remaining = $MaxUrls - $existingCount
   if ($remaining -le 0) {
-    Write-Output "Already have $existingCount files in $outdir which meets or exceeds --MaxUrls $MaxUrls. Nothing to do."
+    Write-Output "Already have $existingCount files in $outdir that match the URL list, which meets or exceeds --MaxUrls $MaxUrls. Nothing to do."
     exit 0
   }
-  Write-Output "MaxUrls specified: $MaxUrls. Existing files: $existingCount. Will download up to $remaining new files."
+  Write-Output "MaxUrls specified: $MaxUrls. Existing files matching URL list: $existingCount. Will download up to $remaining new files."
 } else {
   $remaining = 0 # 0 means unlimited
 }
@@ -85,7 +94,8 @@ if (Get-Command aria2c -ErrorAction SilentlyContinue) {
 
 # PowerShell fallback: Start background jobs that use Start-BitsTransfer and skip existing files
 
-$urls = Get-Content $urlsFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+# Reuse the normalized URL list
+$urls = $allUrls
 
 $jobs = @()
 $added = 0
@@ -110,8 +120,42 @@ foreach ($url in $urls) {
     param($u, $d)
     try {
       Write-Output "Starting download: $u -> $d"
-      Start-BitsTransfer -Source $u -Destination $d -RetryInterval 10 -RetryTimeout 600 -DisplayName "download $([System.IO.Path]::GetFileName($u))"
-      Write-Output "Completed: $d"
+
+      # Start an asynchronous BITS transfer and poll until it finishes.
+      $bits = Start-BitsTransfer -Source $u -Destination $d -Asynchronous -RetryInterval 10 -RetryTimeout 600 -DisplayName "download $([System.IO.Path]::GetFileName($u))"
+
+      while ($true) {
+        $st = Get-BitsTransfer -Id $bits.Id -ErrorAction SilentlyContinue
+        if (-not $st) {
+          Start-Sleep -Seconds 1
+          continue
+        }
+
+        switch ($st.JobState) {
+          'Transferred' {
+            # Complete the transfer (commit file)
+            try {
+              Complete-BitsTransfer -Id $bits.Id -ErrorAction SilentlyContinue
+              Write-Output "Completed: $d"
+            } catch {
+              Write-Error "Failed to complete BITS transfer for $u: $_"
+            }
+            break
+          }
+          'Error' {
+            Write-Error "BITS transfer error for $u"
+            break
+          }
+          'Cancelled' {
+            Write-Error "BITS transfer cancelled for $u"
+            break
+          }
+          default {
+            # Still transferring or queued; wait and poll
+            Start-Sleep -Seconds 1
+          }
+        }
+      }
     } catch {
       Write-Error "Failed $u: $_"
     }
