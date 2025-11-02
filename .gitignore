@@ -18,3 +18,7 @@ tcga_brca_slides/
 
 # Backup files
 removed_backup_*/
+
+# Generated files
+breast_mammary_metadata.csv
+breast_wsi_urls.txt
