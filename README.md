@@ -25,66 +25,22 @@ Quick start
 4. Download the WSIs
 
 	# default concurrency 4, default outdir ./breast_wsi_downloads
-	chmod +x download_wsi.sh
-	# Usage: ./download_wsi.sh [concurrency] [outdir]
-	./download_wsi.sh 4 ./breast_wsi_downloads
+	chmod +x download_wsi.py
+	
+	# Usage: ./download_wsi.py [--concurrency N] [--outdir DIR]
+	./download_wsi.py --concurrency 4 --outdir ./breast_wsi_downloads
 
 	# Dry run (show what would be downloaded, don't actually fetch files)
-	./download_wsi.sh 4 ./breast_wsi_downloads --dry-run
+	./download_wsi.py --dry-run
 
 	# Example: specify a custom directory
-	./download_wsi.sh 8 /data/gtex_wsis
+	./download_wsi.py --concurrency 8 --outdir /data/gtex_wsis
 
 The downloader prefers `aria2c` (if installed) for faster segmented downloads. Otherwise it falls back to `xargs + wget`. There's also a simple Python fallback.
 
-Windows (PowerShell) instructions
+Windows users
 
-1. Open PowerShell and set execution policy for the session:
-
-	Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-
-2. Ensure Python is installed and create a venv (optional):
-
-	python -m venv .venv
-	.\.venv\Scripts\Activate.ps1
-	pip install -r requirements.txt
-
-3. Generate the URL list (same as above):
-
-	.venv\Scripts\python.exe script.py
-
-
-4. Download using PowerShell script (prefers aria2c if installed):
-
-	# Usage: .\download_wsi.ps1 -Concurrency <n> -OutDir <path>
-	.\download_wsi.ps1 -Concurrency 4 -OutDir .\breast_wsi_downloads
-
-	# Dry run (PowerShell)
-	.\download_wsi.ps1 -Concurrency 4 -OutDir .\breast_wsi_downloads -DryRun
-
-
-Notes on Windows downloader
-- `download_wsi.ps1` will use `aria2c` if present. Otherwise it uses `Start-BitsTransfer` in parallel background jobs.
-- If you want more advanced resumable segmented downloads on Windows, install `aria2` and the script will use it automatically.
-
-Install aria2 on Windows (winget)
-
-If you have Windows 10/11 with the App Installer (winget), you can install aria2 with:
-
-```powershell
-winget install --id aria2.aria2 -e
-```
-
-If `aria2.aria2` is not found on the winget feed, they can search for available packages first:
-
-```powershell
-winget search aria2
-```
-
-Alternative installers:
-- Chocolatey: `choco install aria2` (requires Chocolatey)
-- Scoop: `scoop install aria2` (requires Scoop)
-- Manual: download a Windows binary from the aria2 releases page on GitHub.
+This repository now focuses on POSIX-compatible shell usage via `download_wsi.sh` (Linux/macOS). If you're on Windows, run the shell script under WSL, Git Bash, or similar environments. The previous PowerShell downloader was removed to simplify maintenance.
 
 Files of interest
 - `script.py` — filters `GTEx_Portal.csv` and writes `breast_wsi_urls.txt` and `breast_mammary_metadata.csv`.
@@ -94,7 +50,19 @@ Files of interest
 
 Notes
 - The downloaded WSIs are stored in `breast_wsi_downloads/` (this directory is gitignored).
+- **Downloaded files will have the `.svs` extension** (Aperio ScanScope Virtual Slide format, which is TIFF-based).
+- The download scripts now properly handle the `Content-Disposition` header from the server to preserve the correct filename.
 - The script expects `GTEx_Portal.csv` to be present in the repository root. If you downloaded a fresh CSV with different column names, edit `script.py` to match the tissue and sample ID columns or open an issue.
+
+## Recent Bug Fixes
+
+**File Extension Issue (Fixed Nov 2025):** 
+Previously downloaded files were missing the `.svs` extension. This has been fixed:
+- `download_wsi.sh` now uses `--content-disposition` (aria2/wget) to get filenames from the server
+- All active download methods now correctly save files with `.svs` extension
+- If you have old files without extensions, you can rename them: `mv GTEX-XXXXX-XXXX GTEX-XXXXX-XXXX.svs`
+
+See `BUGFIX_SUMMARY.md` for detailed information about the fix.
 
 QuickStart one-liners
 
@@ -104,9 +72,4 @@ Linux / macOS (single line; concurrency 4):
 git clone <repo-url> && cd gtex && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && .venv/bin/python script.py && chmod +x download_wsi.sh && ./download_wsi.sh 4
 ```
 
-Windows PowerShell (single line; concurrency 4):
-
-```powershell
-git clone <repo-url>; cd gtex; python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt; .venv\Scripts\python.exe script.py; .\download_wsi.ps1 -Concurrency 4
-```
 

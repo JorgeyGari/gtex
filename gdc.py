@@ -169,6 +169,12 @@ def main():
         default=10,
         help="Show the first N files when doing a dry-run (default: 10)",
     )
+    parser.add_argument(
+        "--max",
+        type=int,
+        default=0,
+        help="Maximum number of images to download (0 = all).",
+    )
 
     args = parser.parse_args()
 
@@ -178,6 +184,12 @@ def main():
 
     # Query for files
     files = query_tcga_brca_slides()
+
+    # Apply a max limit if requested
+    if getattr(args, "max", 0) and args.max > 0:
+        orig_count = len(files)
+        files = files[: args.max]
+        print(f"Limiting files to first {len(files)} of {orig_count} total")
 
     # Calculate total size
     total_size_gb = sum(f.get("file_size", 0) for f in files) / (1024**3)
@@ -196,7 +208,7 @@ def main():
 
     # Ask user to confirm (unless -y supplied)
     if not args.yes:
-        user_input = input("\nProceed with download? (y/n): ")
+        user_input = input("\nProceed with download? (y/N): ")
         if user_input.lower() != "y":
             print("Download cancelled")
             return

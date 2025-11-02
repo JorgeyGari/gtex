@@ -11,6 +11,10 @@ wheels/
 
 # Downloads and logs
 breast_wsi_downloads/
+tcga_brca_slides/
 *.log
 .wget-hsts
 *.pyc
+
+# Backup files
+removed_backup_*/
