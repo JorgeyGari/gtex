@@ -58,14 +58,6 @@ Do NOT commit:
 
 If you previously had a `requirements.txt` it is optional; prefer `pyproject.toml` + `uv.lock` with UV for reproducible installs.
 
-## CI / Reproducible installs
-
-For strict reproducibility (CI pipelines, production), install only from the lockfile:
-
-```bash
-uv sync --locked
-```
-
 This will error if `pyproject.toml` and the lockfile are out of sync — good for enforcing reproducible builds.
 
 ## Running the downloader (tips)
@@ -76,21 +68,6 @@ This will error if `pyproject.toml` and the lockfile are out of sync — good fo
 
 Be careful when running non-dry runs: the dataset sizes can be large. Make sure you have sufficient disk space and bandwidth.
 
-## Notes
-
-- This repo uses `gdc-api-wrapper` for downloads; the package is referenced in the lockfile / dependency configuration.
-- If you see import errors locally (for example `ModuleNotFoundError: No module named 'requests'`), ensure you ran `uv sync` and use `uv run` to execute scripts.
-
-## References
-
-UV documentation and discussion:
-
-- https://docs.astral.sh/uv/concepts/projects/sync/
-- https://docs.astral.sh/uv/reference/cli/
-- https://pydevtools.com/handbook/how-to/how-to-use-a-uv-lockfile-for-reproducible-python-environments/
-
----
- 
 ## Helper scripts
 
 This repository includes small convenience wrappers in `scripts/` to make common workflows easier:
@@ -118,9 +95,8 @@ Examples (Windows PowerShell):
 
 Both scripts simply call `uv`/`uv run ...` under the hood so they don't require activating the virtual environment manually.
 
-If you want, I can also:
+## Notes
 
-- Add a short `CONTRIBUTING.md` with development steps and a recommended `.gitignore`.
-- Make `scripts/run.sh` executable (chmod +x) and/or add a GitHub Action that demonstrates the `uv sync --locked` CI flow.
-
-Feel free to tell me which option you'd like next.
+- This repo uses `gdc-api-wrapper` for downloads; the package is referenced in the lockfile / dependency configuration.
+- If you see import errors locally (for example `ModuleNotFoundError: No module named 'requests'`), ensure you ran `uv sync` and use `uv run` to execute scripts.
+ 
